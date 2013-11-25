@@ -268,10 +268,6 @@ public class Server {
         BufferedReader input =
             new BufferedReader(new FileReader(args[0]));
 
-// TO DO: you will need to create an Executor and then modify the
-// following loop to feed tasks to the executor instead of running them
-// directly.  Don't modify the initialization of accounts above, or the
-// output at the end.
         // make our thread pool
         ExecutorService executor = Executors.newCachedThreadPool();
         while ((line = input.readLine()) != null) {
