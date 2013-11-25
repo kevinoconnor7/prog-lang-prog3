@@ -3,3 +3,4 @@ __pycache__/
 *.py[cod]
 *.sublime*
 problem1/test
+bin/

@@ -1,6 +1,11 @@
-import java.io.*;
-import java.lang.Thread.*;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.HashSet;
+import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 class constants {
     public static final int A = 0;
@@ -219,12 +224,23 @@ class Worker {
         System.out.println("commit: " + transaction);
     }
 }
+class Twerker implements Runnable {
+    String line;
+    Account[] accounts;
+    Twerker(Account[] _accounts_, String _line_) {line = _line_; accounts = _accounts_;}
+    public void run() {
+        Worker w = new Worker(accounts, line);
+        w.run();
+    }
+}
 
 public class Server {
     private static final int A = constants.A;
     private static final int Z = constants.Z;
     private static final int numLetters = constants.numLetters;
     private static Account[] accounts;
+    
+    
 
     private static void dumpAccounts() {
         // output values:
@@ -256,12 +272,17 @@ public class Server {
 // following loop to feed tasks to the executor instead of running them
 // directly.  Don't modify the initialization of accounts above, or the
 // output at the end.
-
+        // make our thread pool
+        ExecutorService executor = Executors.newCachedThreadPool();
         while ((line = input.readLine()) != null) {
-            Worker w = new Worker(accounts, line);
-            w.run();
+	        executor.submit(new Twerker(accounts, line));
         }
-
+        executor.shutdown();
+        try {
+        	  executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        	} catch (InterruptedException e) {
+        	  System.out.println(e);
+        	}
         System.out.println("final values:");
         dumpAccounts();
     }
