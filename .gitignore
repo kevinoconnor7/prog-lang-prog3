@@ -4,3 +4,4 @@ __pycache__/
 *.sublime*
 problem1/test
 bin/
+.*/

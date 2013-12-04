@@ -13,11 +13,30 @@ class constants {
     public static final int numLetters = 26;
 }
 
-class TransactionAbortException extends Exception {}
+class TransactionAbortException extends Exception {
+	public String getMessage() {
+		System.out.println("ERROR: Transaction abort");
+		return this.getMessage();
+	}
+}
 // this is intended to be caught
-class TransactionUsageError extends Error {}
+class TransactionUsageError extends Error {
+	private String err;
+	public TransactionUsageError(String err) {
+		this.err = err;
+	}
+	public String getMessage() {
+		System.out.println("ERROR: tansaction usage (" + err + ")");
+		return this.getMessage();
+	}
+}
 // this is intended to be fatal
-class InvalidTransactionError extends Error {}
+class InvalidTransactionError extends Error {
+	public String getMessage() {
+		System.out.println("ERROR: invalid transaction");
+		return this.getMessage();
+	}
+}
 // bad input; will have to skip this transaction
 
 // TO DO: you are not permitted to modify class Account
