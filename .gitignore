@@ -5,3 +5,4 @@ __pycache__/
 problem1/test
 bin/
 .*/
+*.class
