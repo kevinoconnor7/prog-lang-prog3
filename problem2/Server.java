@@ -21,12 +21,8 @@ class TransactionAbortException extends Exception {
 }
 // this is intended to be caught
 class TransactionUsageError extends Error {
-	private String err;
-	public TransactionUsageError(String err) {
-		this.err = err;
-	}
 	public String getMessage() {
-		System.out.println("ERROR: tansaction usage (" + err + ")");
+		System.out.println("ERROR: tansaction usage ");
 		return this.getMessage();
 	}
 }
