@@ -6,6 +6,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
 
 class constants {
     public static final int A = 0;
@@ -219,8 +220,16 @@ class Worker {
             Account lhs = parseAccount(words[0]);
             if (!words[1].equals("="))
                 throw new InvalidTransactionError();
+
+						// Right hand side
+						ArrayList<Account> rhsaccs = new ArrayList<Account>();
+						ArrayList<Integer> rhspeek = new ArrayList<>();
             int rhs = parseAccountOrNum(words[2]);
+						rhsaccs.add(parseAccount(words[2]));
+						rhspeek.add(parseAccount(words[2]).peek());
             for (int j = 3; j < words.length; j+=2) {
+							rhsaccs.add(parseAccount(words[j+1]));
+							rhspeek.add(parseAccount(words[j+1]).peek());
                 if (words[j].equals("+"))
                     rhs += parseAccountOrNum(words[j+1]);
                 else if (words[j].equals("-"))
@@ -230,11 +239,17 @@ class Worker {
             }
             try {
                 lhs.open(true);
+								for(Account acc : rhsaccs) {
+									acc.open(true);
+								}
             } catch (TransactionAbortException e) {
                 // won't happen in sequential version
             }
             lhs.update(rhs);
             lhs.close();
+						for(Account acc : rhsaccs) {
+							acc.close();
+						}
         }
         System.out.println("commit: " + transaction);
     }
