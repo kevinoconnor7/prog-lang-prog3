@@ -180,7 +180,94 @@ class Worker implements Runnable{
 		accounts = allAccounts;
 		transaction = trans;
 	}
-	
+
+	private class Cache {
+		private boolean reader;
+		private boolean writer;
+		private boolean locked;
+
+		private int initialValue;
+		private Account acct;
+		private String name;
+		private int acctId;
+
+		public Cache(Account _acct, String _name)
+		{
+			this.acct = _acct;
+			this.name = _name;
+			this.acctId = acctNameToInt(name);
+		}
+
+
+		public boolean needsVerify()
+		{
+			return (reader);
+		}
+
+		public void verify() throws TransactionAbortException
+		{
+			if(needsVerify() && locked)
+			{
+				try
+				{
+					acct.verify(initialValue);
+				} catch (TransactionAbortException up) {
+					throw up;
+				} catch (Exception e) {
+					System.out.println(e);
+				}
+			}
+		}
+
+		public void lock() throws TransactionAbortException
+		{
+			if(!reader && !writer) return;
+			if(locked) return;
+
+			if(reader)
+			{
+				acct.open(false);
+			}
+			if(writer)
+			{
+				acct.open(true);	
+			}
+			locked = true;
+		}
+
+		public void release() throws TransactionUsageError
+		{
+			if(!locked) return;
+			try
+			{
+				acct.close();
+			} catch (TransactionUsageError e) {
+				// Silence this
+			} finally {
+				locked = false;
+			}
+		}
+
+		public void setWriter()
+		{
+			writer = true;
+			initialValue = peek();
+		}
+
+		public void setReader()
+		{
+			reader = true;
+			initialValue = peek();
+		}
+
+		public int peek()
+		{
+			if(!locked)
+				initialValue = acct.peek();
+			return initialValue;
+		}
+	}
+
 	private int acctNameToInt(String name) {
 		int accountNum = (int) (name.charAt(0)) - (int) 'A';
 		if (accountNum < A || accountNum > Z)
@@ -214,15 +301,10 @@ class Worker implements Runnable{
 		return rtn;
 	}
 
-	private void releaseAccounts(short[] lockaccs)
+	private void releaseAccounts(Cache[] cacheaccts)
 	{
-		for (int j = 0; j < lockaccs.length; j++) {
-			if(lockaccs[j] == 0) { continue; }
-			try {
-				accounts[j].close();
-			} catch (TransactionUsageError err) {
-				continue;
-			}
+		for (int j = 0; j < cacheaccts.length; j++) {
+			cacheaccts[j].release();
 		}
 	}
 
@@ -232,73 +314,99 @@ class Worker implements Runnable{
 
 		for (int i = 0; i < commands.length; i++)
 		{
+			Cache[] cacheaccts = new Cache[accounts.length];
+			for(int j = 0; j < accounts.length; ++j)
+			{
+				cacheaccts[j] = new Cache(accounts[j], String.valueOf((char)(j + (int)'A'))); 
+			}
+
 			String[] words = commands[i].trim().split("\\s");
 			if (words.length < 3)
 				throw new InvalidTransactionError();
+			
 			Account lhs = parseAccount(words[0]);
 			if (!words[1].equals("="))
 				throw new InvalidTransactionError();
 
-			//Accounts to open/close
-			short[] lockaccs = new short[numLetters];
+			cacheaccts[acctNameToInt(words[0])].setWriter();
 
-			//RHS Cache
-			int[] rhscache = new int[numLetters];
+			int val = 0;
 
-			lockaccs[acctNameToInt(words[0])] = 2;
+			// We can either have a letter (A-Z) or a number here
+			int idx = 2;
 
-            int rhs = parseAccountOrNum(words[2]);
-            for (int j = 3; j < words.length; j+=2)
-            {
-            	if (!(words[j+1].charAt(0) >= '0' && words[j+1].charAt(0) <= '9'))
-            	{
-            		if(lockaccs[acctNameToInt(words[j+1])] == 0)
-            		{
-	            		lockaccs[acctNameToInt(words[j+1])] = 1;
-            		} else {
-	            		lockaccs[acctNameToInt(words[j+1])] = 3;
-            		}
-            		rhscache[acctNameToInt(words[j+1])] = accounts[acctNameToInt(words[j+1])].peek();
-            	}
-                if (words[j].equals("+"))
-                    rhs += parseAccountOrNum(words[j+1]);
-                else if (words[j].equals("-"))
-                    rhs -= parseAccountOrNum(words[j+1]);
-                else
-                    throw new InvalidTransactionError();
-            }
-			boolean written = false;
-			while(!written)
+			if (words[idx].charAt(0) >= '0' && words[idx].charAt(0) <= '9')
+			{
+				val = parseAccountOrNum(words[idx]);
+			}
+			else if (words[idx].charAt(0) >= 'A' && words[idx].charAt(0) <= 'Z')
+			{
+				cacheaccts[acctNameToInt(words[idx])].setReader();
+				val = cacheaccts[acctNameToInt(words[idx])].peek();
+			}
+			else
+			{
+				throw new InvalidTransactionError();
+			}
+
+			if(words.length == 5)
+			{
+				// We can either have a plus or minus and then a letter (A-Z) or number here
+				idx = 4;
+				if (words[idx].charAt(0) >= '0' && words[idx].charAt(0) <= '9')
+				{
+					if (words[idx-1].equals("+"))
+						val += parseAccountOrNum(words[idx]);
+					else if (words[idx-1].equals("-"))
+						val -= parseAccountOrNum(words[idx]);
+					else
+						throw new InvalidTransactionError();
+				} 
+				else if (words[idx].charAt(0) >= 'A' && words[idx].charAt(0) <= 'Z')
+				{
+					cacheaccts[acctNameToInt(words[idx])].setReader();
+					if (words[idx-1].equals("+"))
+						val += cacheaccts[acctNameToInt(words[idx])].peek();
+					else if (words[idx-1].equals("-"))
+						val -= cacheaccts[acctNameToInt(words[idx])].peek();
+					else
+						throw new InvalidTransactionError();
+				} 
+				else 
+				{
+					throw new InvalidTransactionError();
+				}
+			}
+
+			boolean gotLocks = false;
+			while(!gotLocks)
 			{
 				try {
-					for (int j = 0; j < lockaccs.length; j++) {
-						if(lockaccs[j] == 0) { continue; }
-						accounts[j].open(lockaccs[j] == 2 || lockaccs[j] == 3);
+					for (int j = 0; j < cacheaccts.length; j++) {
+						cacheaccts[j].lock();
 					}
 				} catch (TransactionAbortException e) {
-					releaseAccounts(lockaccs);
+					releaseAccounts(cacheaccts);
 					continue;
 				}
-
-				try {
-					for (int j = 0; j < rhscache.length; j++) {
-						if(lockaccs[j] == 0 || lockaccs[j] == 2) { continue; }
-						accounts[j].verify(rhscache[j]);
-						
-					}
-				} catch (TransactionAbortException err) {
-					releaseAccounts(lockaccs);
-					i--;
-					break;
-				}
-				
-				lhs.update(rhs);
-				written=true;
-				releaseAccounts(lockaccs);
+				gotLocks = true;
 			}
-        }
-        System.out.println("commit: " + transaction);
-    }
+
+			try {
+				for (int j = 0; j < cacheaccts.length; j++) {
+					cacheaccts[j].verify();
+				}
+			} catch (TransactionAbortException e) {
+				releaseAccounts(cacheaccts);
+				i--;
+				continue;
+			}
+
+			lhs.update(val);
+			releaseAccounts(cacheaccts);
+		}
+		System.out.println("commit: " + transaction);
+	}
 }
 
 public class Server {
