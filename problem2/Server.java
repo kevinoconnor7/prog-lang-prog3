@@ -341,6 +341,17 @@ class Worker implements Runnable{
 			}
 			else if (words[idx].charAt(0) >= 'A' && words[idx].charAt(0) <= 'Z')
 			{
+			//"dereference" *'s
+			for (int j = 0; j < words.length; j++)
+			{
+				int depth = words[j].length();
+				char derefed = words[j].charAt(0);
+				while(--depth>0) {
+					cacheaccts[acctNameToInt(derefed+"")].setReader();
+			 		derefed = (char)('@'+parseAccount(derefed+"").peek()%numLetters);
+				}
+				words[j] = derefed+"";
+			}
 				cacheaccts[acctNameToInt(words[idx])].setReader();
 				val = cacheaccts[acctNameToInt(words[idx])].peek();
 			}
