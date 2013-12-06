@@ -214,6 +214,18 @@ class Worker implements Runnable{
 		return rtn;
 	}
 
+	private void releaseAccounts(short[] lockaccs)
+	{
+		for (int j = 0; j < lockaccs.length; j++) {
+			if(lockaccs[j] == 0) { continue; }
+			try {
+				accounts[j].close();
+			} catch (TransactionUsageError err) {
+				continue;
+			}
+		}
+	}
+
 	public void run() {
 		// tokenize transaction
 		String[] commands = transaction.split(";");
@@ -230,6 +242,9 @@ class Worker implements Runnable{
 			//Accounts to open/close
 			short[] lockaccs = new short[numLetters];
 
+			//RHS Cache
+			int[] rhscache = new int[numLetters];
+
 			lockaccs[acctNameToInt(words[0])] = 2;
 
             int rhs = parseAccountOrNum(words[2]);
@@ -237,8 +252,13 @@ class Worker implements Runnable{
             {
             	if (!(words[j+1].charAt(0) >= '0' && words[j+1].charAt(0) <= '9'))
             	{
-            		if(lockaccs[acctNameToInt(words[j+1])] != 0)
+            		if(lockaccs[acctNameToInt(words[j+1])] == 0)
+            		{
 	            		lockaccs[acctNameToInt(words[j+1])] = 1;
+            		} else {
+	            		lockaccs[acctNameToInt(words[j+1])] = 3;
+            		}
+            		rhscache[acctNameToInt(words[j+1])] = accounts[acctNameToInt(words[j+1])].peek();
             	}
                 if (words[j].equals("+"))
                     rhs += parseAccountOrNum(words[j+1]);
@@ -253,35 +273,28 @@ class Worker implements Runnable{
 				try {
 					for (int j = 0; j < lockaccs.length; j++) {
 						if(lockaccs[j] == 0) { continue; }
-						accounts[j].open(lockaccs[j] == 2);
+						accounts[j].open(lockaccs[j] == 2 || lockaccs[j] == 3);
 					}
 				} catch (TransactionAbortException e) {
-					try {
-						for (int j = 0; j < lockaccs.length; j++) {
-							if(lockaccs[j] == 0) { continue; }
-							try {
-								accounts[j].close();
-							} catch (TransactionUsageError err) {
-								continue;
-							}
-						}
-					} catch (TransactionUsageError er) {
-					}
+					releaseAccounts(lockaccs);
 					continue;
 				}
+
+				try {
+					for (int j = 0; j < rhscache.length; j++) {
+						if(lockaccs[j] == 0 || lockaccs[j] == 2) { continue; }
+						accounts[j].verify(rhscache[j]);
+						
+					}
+				} catch (TransactionAbortException err) {
+					releaseAccounts(lockaccs);
+					i--;
+					break;
+				}
+				
 				lhs.update(rhs);
 				written=true;
-				try {
-					for (int j = 0; j < lockaccs.length; j++) {
-						if(lockaccs[j] == 0) { continue; }
-						try {
-							accounts[j].close();
-						} catch (TransactionUsageError err) {
-							continue;
-						}
-					}
-				} catch (TransactionUsageError er) {
-				} 
+				releaseAccounts(lockaccs);
 			}
         }
         System.out.println("commit: " + transaction);
