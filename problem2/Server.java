@@ -184,7 +184,7 @@ class Worker {
     // TO DO: parseAccount currently returns a reference to an account.
     // You probably want to change it to return a reference to an
     // account *cache* instead.
-    //
+    // used peeks for this
     private Account parseAccount(String name) {
         int accountNum = (int) (name.charAt(0)) - (int) 'A';
         if (accountNum < A || accountNum > Z)
