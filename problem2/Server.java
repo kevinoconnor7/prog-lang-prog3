@@ -159,7 +159,7 @@ class Account {
 // You will need to movify it to make it a task,
 // so it can be given to an Executor thread pool.
 //
-class Worker {
+class Worker implements Runnable{
     private static final int A = constants.A;
     private static final int Z = constants.Z;
     private static final int numLetters = constants.numLetters;
@@ -243,7 +243,7 @@ class Worker {
 									acc.open(true);
 								}
             } catch (TransactionAbortException e) {
-                // won't happen in sequential version
+							System.out.println(e);
             }
             lhs.update(rhs);
             lhs.close();
@@ -252,15 +252,6 @@ class Worker {
 						}
         }
         System.out.println("commit: " + transaction);
-    }
-}
-class Twerker implements Runnable {
-    String line;
-    Account[] accounts;
-    Twerker(Account[] _accounts_, String _line_) {line = _line_; accounts = _accounts_;}
-    public void run() {
-        Worker w = new Worker(accounts, line);
-        w.run();
     }
 }
 
@@ -301,14 +292,14 @@ public class Server {
         // make our thread pool
         ExecutorService executor = Executors.newCachedThreadPool();
         while ((line = input.readLine()) != null) {
-	        executor.submit(new Twerker(accounts, line));
+	        executor.submit(new Worker(accounts, line));
         }
         executor.shutdown();
         try {
-        	  executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-        	} catch (InterruptedException e) {
-        	  System.out.println(e);
-        	}
+       	  executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+       	} catch (InterruptedException e) {
+       	  System.out.println(e);
+       	}
         System.out.println("final values:");
         dumpAccounts();
     }
