@@ -223,7 +223,7 @@ class Worker {
 
 						// Right hand side
 						ArrayList<Account> rhsaccs = new ArrayList<Account>();
-						ArrayList<Integer> rhspeek = new ArrayList<>();
+						ArrayList<Integer> rhspeek = new ArrayList<Integer>();
             int rhs = parseAccountOrNum(words[2]);
 						rhsaccs.add(parseAccount(words[2]));
 						rhspeek.add(parseAccount(words[2]).peek());
