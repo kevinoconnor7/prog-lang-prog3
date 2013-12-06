@@ -222,14 +222,12 @@ class Worker implements Runnable{
                 throw new InvalidTransactionError();
 
 						// Right hand side
-						ArrayList<Account> rhsaccs = new ArrayList<Account>();
-						ArrayList<Integer> rhspeek = new ArrayList<Integer>();
+						Account[] rhsaccs = new Account[numLetters];
+
             int rhs = parseAccountOrNum(words[2]);
-						rhsaccs.add(parseAccount(words[2]));
-						rhspeek.add(parseAccount(words[2]).peek());
+						rhsaccs[parseAccount(words[2]).peek()] = parseAccount(words[2]);
             for (int j = 3; j < words.length; j+=2) {
-							rhsaccs.add(parseAccount(words[j+1]));
-							rhspeek.add(parseAccount(words[j+1]).peek());
+							rhsaccs[parseAccount(words[j+1]).peek()] = parseAccount(words[j+1]);
                 if (words[j].equals("+"))
                     rhs += parseAccountOrNum(words[j+1]);
                 else if (words[j].equals("-"))
@@ -237,19 +235,39 @@ class Worker implements Runnable{
                 else
                     throw new InvalidTransactionError();
             }
-            try {
-                lhs.open(true);
-								for(Account acc : rhsaccs) {
-									acc.open(true);
+						boolean written = false;
+						while(!written) {
+          	  try {
+          	      lhs.open(true);
+        					for (int j = 0; j < numLetters; j++) {
+										rhsaccs[j].open(false);
+									}
+          	  } catch (TransactionAbortException e) {
+							//	System.out.println(e);
+								try {
+									lhs.close();
+        					for (int j = 0; j < numLetters; j++) {
+										if(rhsaccs[j] == null) { System.out.println("it's null"); continue; }
+										rhsaccs[j].close();
+										System.out.println("FUCKYOU1");
+									}
+								} catch (TransactionUsageError er) {
 								}
-            } catch (TransactionAbortException e) {
-							System.out.println(e);
-            }
-            lhs.update(rhs);
-            lhs.close();
-						for(Account acc : rhsaccs) {
-							acc.close();
-						}
+								lhs.close();
+        				for (int j = 0; j < numLetters; j++) {
+									if(rhsaccs[j] == null) { System.out.println("it's null"); continue; }
+									rhsaccs[j].close();
+								}
+								System.out.println("fckeverytihng");
+								continue;
+          	  }
+          	  lhs.update(rhs);
+							written=true;
+          	  lhs.close();
+							for(Account acc : rhsaccs) {
+								acc.close();
+							}
+					}
         }
         System.out.println("commit: " + transaction);
     }
