@@ -1,3 +1,7 @@
+""" 
+    Programming Languages Project 3 Problem 1 
+    Kevin O'Connor & Dimitre Dimitrov
+"""
 """ Contains objects to represent File System objects """
 
 from os.path import splitext, getsize, isdir

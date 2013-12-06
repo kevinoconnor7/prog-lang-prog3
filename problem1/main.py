@@ -1,4 +1,7 @@
-""" Programming Languages Project 3 Problem 1 """
+""" 
+    Programming Languages Project 3 Problem 1 
+    Kevin O'Connor & Dimitre Dimitrov
+"""
 
 import sys
 from os import listdir
