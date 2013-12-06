@@ -283,26 +283,28 @@ class Worker implements Runnable{
 	// You probably want to change it to return a reference to an
 	// account *cache* instead.
 	// used peeks for this
-	private Account parseAccount(String name) {
+	private Account parseAccount(String name, Cache[] cacheaccts) {
+		int accountNum = parseAccountNum(name, cacheaccts);
+		return accounts[accountNum];
+	}
+
+	private int parseAccountNum(String name, Cache[] cacheaccts) {
 		int accountNum = acctNameToInt(name);
 		Account a = accounts[accountNum];
 		for (int i = 1; i < name.length(); i++) {
 			if (name.charAt(i) != '*')
 				throw new InvalidTransactionError();
-			accountNum = (accounts[accountNum].peek() % numLetters);
-			a = accounts[accountNum];
+			cacheaccts[accountNum].reader = true;
+			accountNum = (cacheaccts[accountNum].peek() % numLetters);
 		}
-		return a;
+		return accountNum;
 	}
 
-	private int parseAccountOrNum(String name) {
-		int rtn;
+	private int parseNum(String name) {
 		if (name.charAt(0) >= '0' && name.charAt(0) <= '9') {
-			rtn = new Integer(name).intValue();
-		} else {
-			rtn = parseAccount(name).peek();
+			return new Integer(name).intValue();
 		}
-		return rtn;
+		return 0;
 	}
 
 	private void releaseAccounts(Cache[] cacheaccts)
@@ -327,22 +329,13 @@ class Worker implements Runnable{
 			String[] words = commands[i].trim().split("\\s");
 			if (words.length < 3)
 				throw new InvalidTransactionError();
-
-			//"dereference" *'s
-			for (int j = 0; j < words.length; j++) {
-				int depth = words[j].length();
-				char derefed = words[j].charAt(0);
-				while(--depth>0) {
-						derefed = (char)('@'+parseAccount(derefed+"").peek()%numLetters);
-				}
-				words[j] = derefed+"";
-			}
 			
-			Account lhs = parseAccount(words[0]);
+			int lhsnum = parseAccountNum(words[0], cacheaccts);
+			Account lhs = accounts[lhsnum];
+			cacheaccts[lhsnum].setWriter();
+
 			if (!words[1].equals("="))
 				throw new InvalidTransactionError();
-
-			cacheaccts[acctNameToInt(words[0])].setWriter();
 
 			int val = 0;
 
@@ -351,23 +344,13 @@ class Worker implements Runnable{
 
 			if (words[idx].charAt(0) >= '0' && words[idx].charAt(0) <= '9')
 			{
-				val = parseAccountOrNum(words[idx]);
+				val = parseNum(words[idx]);
 			}
 			else if (words[idx].charAt(0) >= 'A' && words[idx].charAt(0) <= 'Z')
 			{
-			//"dereference" *'s
-			for (int j = 0; j < words.length; j++)
-			{
-				int depth = words[j].length();
-				char derefed = words[j].charAt(0);
-				while(--depth>0) {
-					cacheaccts[acctNameToInt(derefed+"")].setReader();
-			 		derefed = (char)('@'+parseAccount(derefed+"").peek()%numLetters);
-				}
-				words[j] = derefed+"";
-			}
-				cacheaccts[acctNameToInt(words[idx])].setReader();
-				val = cacheaccts[acctNameToInt(words[idx])].peek();
+				int acctnum = parseAccountNum(words[idx], cacheaccts);
+				cacheaccts[acctnum].setReader();
+				val = cacheaccts[acctnum].peek();
 			}
 			else
 			{
@@ -381,19 +364,20 @@ class Worker implements Runnable{
 				if (words[idx].charAt(0) >= '0' && words[idx].charAt(0) <= '9')
 				{
 					if (words[idx-1].equals("+"))
-						val += parseAccountOrNum(words[idx]);
+						val += parseNum(words[idx]);
 					else if (words[idx-1].equals("-"))
-						val -= parseAccountOrNum(words[idx]);
+						val -= parseNum(words[idx]);
 					else
 						throw new InvalidTransactionError();
 				} 
 				else if (words[idx].charAt(0) >= 'A' && words[idx].charAt(0) <= 'Z')
 				{
-					cacheaccts[acctNameToInt(words[idx])].setReader();
+					int acctnum = parseAccountNum(words[idx], cacheaccts);
+					cacheaccts[acctnum].setReader();
 					if (words[idx-1].equals("+"))
-						val += cacheaccts[acctNameToInt(words[idx])].peek();
+						val += cacheaccts[acctnum].peek();
 					else if (words[idx-1].equals("-"))
-						val -= cacheaccts[acctNameToInt(words[idx])].peek();
+						val -= cacheaccts[acctnum].peek();
 					else
 						throw new InvalidTransactionError();
 				} 
