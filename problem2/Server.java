@@ -185,6 +185,7 @@ class Worker implements Runnable{
 		private boolean reader;
 		private boolean writer;
 		private boolean locked;
+		private boolean peeked;
 
 		private int initialValue;
 		private Account acct;
@@ -262,8 +263,11 @@ class Worker implements Runnable{
 
 		public int peek()
 		{
-			if(!locked)
+			if(!peeked)
+			{
 				initialValue = acct.peek();
+				peeked = true;
+			}
 			return initialValue;
 		}
 	}
@@ -323,6 +327,16 @@ class Worker implements Runnable{
 			String[] words = commands[i].trim().split("\\s");
 			if (words.length < 3)
 				throw new InvalidTransactionError();
+
+			//"dereference" *'s
+			for (int j = 0; j < words.length; j++) {
+				int depth = words[j].length();
+				char derefed = words[j].charAt(0);
+				while(--depth>0) {
+						derefed = (char)('@'+parseAccount(derefed+"").peek()%numLetters);
+				}
+				words[j] = derefed+"";
+			}
 			
 			Account lhs = parseAccount(words[0]);
 			if (!words[1].equals("="))
