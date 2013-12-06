@@ -181,14 +181,19 @@ class Worker implements Runnable{
 		transaction = trans;
 	}
 	
+	private int acctNameToInt(String name) {
+		int accountNum = (int) (name.charAt(0)) - (int) 'A';
+		if (accountNum < A || accountNum > Z)
+			throw new InvalidTransactionError();
+		return accountNum;
+	}
+
 	// TO DO: parseAccount currently returns a reference to an account.
 	// You probably want to change it to return a reference to an
 	// account *cache* instead.
 	// used peeks for this
 	private Account parseAccount(String name) {
-		int accountNum = (int) (name.charAt(0)) - (int) 'A';
-		if (accountNum < A || accountNum > Z)
-			throw new InvalidTransactionError();
+		int accountNum = acctNameToInt(name);
 		Account a = accounts[accountNum];
 		for (int i = 1; i < name.length(); i++) {
 			if (name.charAt(i) != '*')
@@ -213,7 +218,8 @@ class Worker implements Runnable{
 		// tokenize transaction
 		String[] commands = transaction.split(";");
 
-		for (int i = 0; i < commands.length; i++) {
+		for (int i = 0; i < commands.length; i++)
+		{
 			String[] words = commands[i].trim().split("\\s");
 			if (words.length < 3)
 				throw new InvalidTransactionError();
@@ -221,38 +227,65 @@ class Worker implements Runnable{
 			if (!words[1].equals("="))
 				throw new InvalidTransactionError();
 
-						// Right hand side
-			ArrayList<Account> rhsaccs = new ArrayList<Account>();
-			ArrayList<Integer> rhspeek = new ArrayList<Integer>();
-			int rhs = parseAccountOrNum(words[2]);
-			rhsaccs.add(parseAccount(words[2]));
-			rhspeek.add(parseAccount(words[2]).peek());
-			for (int j = 3; j < words.length; j+=2) {
-							rhsaccs.add(parseAccount(words[j+1]));
-							rhspeek.add(parseAccount(words[j+1]).peek());
-				if (words[j].equals("+"))
-					rhs += parseAccountOrNum(words[j+1]);
-				else if (words[j].equals("-"))
-					rhs -= parseAccountOrNum(words[j+1]);
-				else
-					throw new InvalidTransactionError();
-			}
-			try {
-				lhs.open(true);
-				for(Account acc : rhsaccs) {
-					acc.open(true);
+			//Accounts to open/close
+			short[] lockaccs = new short[numLetters];
+
+			lockaccs[acctNameToInt(words[0])] = 2;
+
+            int rhs = parseAccountOrNum(words[2]);
+            for (int j = 3; j < words.length; j+=2)
+            {
+            	if (!(words[j+1].charAt(0) >= '0' && words[j+1].charAt(0) <= '9'))
+            	{
+            		if(lockaccs[acctNameToInt(words[j+1])] != 0)
+	            		lockaccs[acctNameToInt(words[j+1])] = 1;
+            	}
+                if (words[j].equals("+"))
+                    rhs += parseAccountOrNum(words[j+1]);
+                else if (words[j].equals("-"))
+                    rhs -= parseAccountOrNum(words[j+1]);
+                else
+                    throw new InvalidTransactionError();
+            }
+			boolean written = false;
+			while(!written)
+			{
+				try {
+					for (int j = 0; j < lockaccs.length; j++) {
+						if(lockaccs[j] == 0) { continue; }
+						accounts[j].open(lockaccs[j] == 2);
+					}
+				} catch (TransactionAbortException e) {
+					try {
+						for (int j = 0; j < lockaccs.length; j++) {
+							if(lockaccs[j] == 0) { continue; }
+							try {
+								accounts[j].close();
+							} catch (TransactionUsageError err) {
+								continue;
+							}
+						}
+					} catch (TransactionUsageError er) {
+					}
+					continue;
 				}
-			} catch (TransactionAbortException e) {
-				System.out.println(e);
+				lhs.update(rhs);
+				written=true;
+				try {
+					for (int j = 0; j < lockaccs.length; j++) {
+						if(lockaccs[j] == 0) { continue; }
+						try {
+							accounts[j].close();
+						} catch (TransactionUsageError err) {
+							continue;
+						}
+					}
+				} catch (TransactionUsageError er) {
+				} 
 			}
-			lhs.update(rhs);
-			lhs.close();
-			for(Account acc : rhsaccs) {
-				acc.close();
-			}
-		}
-		System.out.println("commit: " + transaction);
-	}
+        }
+        System.out.println("commit: " + transaction);
+    }
 }
 
 public class Server {
